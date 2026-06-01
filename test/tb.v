@@ -4,7 +4,7 @@
 module tb ();
 
   // -----------------------------
-  // Wave dump
+  // Waveform dump
   // -----------------------------
   initial begin
     $dumpfile("tb.fst");
@@ -30,14 +30,13 @@ module tb ();
 `endif
 
   // -----------------------------
-  // DUT instantiation
+  // DUT
   // -----------------------------
   tt_um_example dut (
 `ifdef GL_TEST
       .VPWR(VPWR),
       .VGND(VGND),
 `endif
-
       .ui_in   (ui_in),
       .uo_out  (uo_out),
       .uio_in  (uio_in),
@@ -49,51 +48,69 @@ module tb ();
   );
 
   // -----------------------------
-  // Clock generation (10ns period)
+  // Clock (100 MHz equivalent)
   // -----------------------------
   always #5 clk = ~clk;
 
   // -----------------------------
-  // Stimulus
+  // RESET task
+  // -----------------------------
+  task reset_dut;
+  begin
+    rst_n = 0;
+    ui_in = 0;
+    uio_in = 0;
+    ena = 0;
+
+    repeat (3) @(posedge clk);
+    rst_n = 1;
+    ena   = 1;
+
+    @(posedge clk);
+  end
+  endtask
+
+  // -----------------------------
+  // Apply stimulus (safe sync)
+  // -----------------------------
+  task apply(input [7:0] val);
+  begin
+    @(negedge clk);
+    ui_in = val;
+
+    @(posedge clk);
+    #1;
+
+    $display("time=%0t input=%b output=%b",
+             $time, val, uo_out);
+  end
+  endtask
+
+  // -----------------------------
+  // Test sequence
   // -----------------------------
   initial begin
-    // init
     clk   = 0;
     rst_n = 0;
-    ena   = 1;
+    ena   = 0;
     ui_in = 0;
     uio_in = 0;
 
-    // reset pulse
-    #20;
-    rst_n = 1;
+    reset_dut();
 
     // -----------------------------
-    // Test cases (4-bit palindrome)
+    // Palindrome test cases
     // -----------------------------
+    apply(8'b00001001); // 9  -> 1
+    apply(8'b00000110); // 6  -> 1
+    apply(8'b00001010); // 10 -> 0
+    apply(8'b00001100); // 12 -> 0
+    apply(8'b00001111); // 15 -> 1
 
-    // 1001 = 9 → palindrome
-    ui_in = 8'b00001001;
-    #20;
-
-    // 0110 = 6 → palindrome
-    ui_in = 8'b00000110;
-    #20;
-
-    // 1010 → not palindrome
-    ui_in = 8'b00001010;
-    #20;
-
-    // 1100 → not palindrome
-    ui_in = 8'b00001100;
-    #20;
-
-    // 1111 → palindrome
-    ui_in = 8'b00001111;
-    #20;
-
-    // finish
-    #20;
+    // -----------------------------
+    // Finish
+    // -----------------------------
+    repeat (5) @(posedge clk);
     $finish;
   end
 
